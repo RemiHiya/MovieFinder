@@ -1,4 +1,4 @@
-const GRID_SIZE = 50;
+const GRID_SIZE = 100;
 
 const CELL_WIDTH = 145;
 const CELL_HEIGHT = 210;
@@ -85,14 +85,10 @@ function analyzeDatasetAndSetupFilters() {
 
         if (movie.genres) movie.genres.forEach(g => allGenres.add(g));
 
-        if (movie.year) {
             if (movie.year < datasetBounds.minYear || datasetBounds.minYear === -1) datasetBounds.minYear = movie.year;
             if (movie.year > datasetBounds.maxYear || datasetBounds.minYear === -1) datasetBounds.maxYear = movie.year;
-        }
-        if (movie.runtime > 0) {
             if (movie.runtime < datasetBounds.minRuntime || datasetBounds.minRuntime === -1) datasetBounds.minRuntime = movie.runtime;
             if (movie.runtime > datasetBounds.maxRuntime || datasetBounds.maxRuntime === -1) datasetBounds.maxRuntime = movie.runtime;
-        }
     });
 
     // Initial filters
