@@ -1,0 +1,466 @@
+const GRID_SIZE = 50;
+
+const CELL_WIDTH = 145;
+const CELL_HEIGHT = 210;
+const CARD_WIDTH = 110;
+const CARD_HEIGHT = 165;
+
+const viewport = document.getElementById('viewport');
+const container = document.getElementById('grid-container');
+const searchBar = document.getElementById('search-bar');
+const randomBtn = document.getElementById('random-btn');
+
+// Modal Elements
+const modal = document.getElementById('movie-modal');
+const modalTitle = document.getElementById('modal-title');
+const modalDate = document.getElementById('modal-date');
+const modalDuration = document.getElementById('modal-duration');
+const modalTrailer = document.getElementById('modal-trailer');
+const modalGenres = document.getElementById('modal-genres');
+const modalOverview = document.getElementById('modal-overview');
+const closeModalBtn = document.querySelector('.close-btn');
+
+// Filters elements
+const filterToggleBtn = document.getElementById('filter-toggle-btn');
+const filterSidebar = document.getElementById('filter-sidebar');
+const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
+const genresContainer = document.getElementById('genres-container');
+const resetFiltersBtn = document.getElementById('reset-filters-btn');
+
+const yearMinInput = document.getElementById('year-min');
+const yearMaxInput = document.getElementById('year-max');
+const yearLabel = document.getElementById('year-range-label');
+
+const runtimeMinInput = document.getElementById('runtime-min');
+const runtimeMaxInput = document.getElementById('runtime-max');
+const runtimeLabel = document.getElementById('runtime-range-label');
+
+let moviesData = [];
+let cardsElements = [];
+
+// Filters states
+let activeFilters = {
+    genres: new Set(),
+    minYear: -1,
+    maxYear: -1,
+    minRuntime: -1,
+    maxRuntime: -1
+};
+
+// Dataset extremum values
+let datasetBounds = {
+    minYear: -1, maxYear: -1,
+    minRuntime: -1, maxRuntime: -1
+};
+
+let targetPanX = window.innerWidth / 2 - (GRID_SIZE * CELL_WIDTH) / 2;
+let targetPanY = window.innerHeight / 2 - (GRID_SIZE * CELL_HEIGHT) / 2;
+let currentPanX = targetPanX;
+let currentPanY = targetPanY;
+
+let isMouseDown = false;
+let isDragging = false;
+let hasDragged = false;
+let startX, startY;
+let mouseDownX, mouseDownY;
+const DRAG_THRESHOLD = 5;
+
+let activeMovieRecord = null;
+
+fetch('movies_grid.json')
+    .then(response => response.json())
+    .then(movies => {
+        moviesData = movies;
+        analyzeDatasetAndSetupFilters();
+        renderGrid();
+        requestAnimationFrame(updateLoop);
+    });
+
+function analyzeDatasetAndSetupFilters() {
+    const allGenres = new Set();
+
+    moviesData.forEach(movie => {
+        movie.year = movie.release_date ? parseInt(movie.release_date.split('-')[0]) : null;
+        movie.runtime = movie.runtime || 0;
+
+        if (movie.genres) movie.genres.forEach(g => allGenres.add(g));
+
+        if (movie.year) {
+            if (movie.year < datasetBounds.minYear || datasetBounds.minYear === -1) datasetBounds.minYear = movie.year;
+            if (movie.year > datasetBounds.maxYear || datasetBounds.minYear === -1) datasetBounds.maxYear = movie.year;
+        }
+        if (movie.runtime > 0) {
+            if (movie.runtime < datasetBounds.minRuntime || datasetBounds.minRuntime === -1) datasetBounds.minRuntime = movie.runtime;
+            if (movie.runtime > datasetBounds.maxRuntime || datasetBounds.maxRuntime === -1) datasetBounds.maxRuntime = movie.runtime;
+        }
+    });
+
+    // Initial filters
+    activeFilters.minYear = datasetBounds.minYear;
+    activeFilters.maxYear = datasetBounds.maxYear;
+    activeFilters.minRuntime = datasetBounds.minRuntime;
+    activeFilters.maxRuntime = datasetBounds.maxRuntime;
+
+    // Setup inputs
+    setupSliderElement(yearMinInput, yearMaxInput, datasetBounds.minYear, datasetBounds.maxYear, yearLabel, 'ans');
+    setupSliderElement(runtimeMinInput, runtimeMaxInput, datasetBounds.minRuntime, datasetBounds.maxRuntime, runtimeLabel, 'min');
+
+    // Genre buttons
+    Array.from(allGenres).sort().forEach(genre => {
+        const btn = document.createElement('button');
+        btn.className = 'genre-filter-btn';
+        btn.textContent = genre;
+        btn.addEventListener('click', () => {
+            if (activeFilters.genres.has(genre)) {
+                activeFilters.genres.delete(genre);
+                btn.classList.remove('active');
+            } else {
+                activeFilters.genres.add(genre);
+                btn.classList.add('active');
+            }
+            closeMovieModal();
+        });
+        genresContainer.appendChild(btn);
+    });
+}
+
+function setupSliderElement(minInput, maxInput, minVal, maxVal, labelEl, unit) {
+    minInput.min = minVal; minInput.max = maxVal; minInput.value = minVal;
+    maxInput.min = minVal; maxInput.max = maxVal; maxInput.value = maxVal;
+
+    const updateLabel = () => {
+        labelEl.textContent = `${minInput.value} - ${maxInput.value} ${unit}`;
+    };
+
+    minInput.addEventListener('input', () => {
+        if (parseInt(minInput.value) > parseInt(maxInput.value)) {
+            minInput.value = maxInput.value;
+        }
+        if (unit === 'ans') activeFilters.minYear = parseInt(minInput.value);
+        else activeFilters.minRuntime = parseInt(minInput.value);
+        updateLabel();
+        closeMovieModal();
+    });
+
+    maxInput.addEventListener('input', () => {
+        if (parseInt(maxInput.value) < parseInt(minInput.value)) {
+            maxInput.value = minInput.value;
+        }
+        if (unit === 'ans') activeFilters.maxYear = parseInt(maxInput.value);
+        else activeFilters.maxRuntime = parseInt(maxInput.value);
+        updateLabel();
+        closeMovieModal();
+    });
+
+    updateLabel();
+}
+
+function movieMatchesFilters(movie) {
+    if (activeFilters.genres.size > 0) {
+        const hasGenre = movie.genres && movie.genres.some(g => activeFilters.genres.has(g));
+        if (!hasGenre) return false;
+    }
+    if (movie.year && (movie.year < activeFilters.minYear || movie.year > activeFilters.maxYear)) {
+        return false;
+    }
+    if (movie.runtime < activeFilters.minRuntime || movie.runtime > activeFilters.maxRuntime) {
+        return false;
+    }
+    return true;
+}
+
+function renderGrid() {
+    container.innerHTML = '';
+    cardsElements = [];
+
+    moviesData.forEach((movie, index) => {
+        const card = document.createElement('div');
+        card.className = 'movie-card';
+        card.innerHTML = `<img src="${movie.poster}" alt="${movie.title}" title="${movie.title}" draggable="false">`;
+
+        movie.isVisible = false;
+        movie.isActiveMovie = false;
+
+        card.addEventListener('click', () => {
+            if (hasDragged) return;
+            recenterOnMovie(movie);
+            openMovieModal(movie, card);
+        });
+
+        container.appendChild(card);
+        cardsElements.push(card);
+    });
+}
+
+function recenterOnMovie(movie) {
+    const targetX = movie.x * CELL_WIDTH + CELL_WIDTH / 2;
+    const targetY = movie.y * CELL_HEIGHT + CELL_HEIGHT / 2;
+
+    targetPanX = window.innerWidth / 2 - targetX;
+    targetPanY = window.innerHeight / 2 - targetY;
+}
+
+function openMovieModal(movie, card) {
+    if (activeMovieRecord) {
+        activeMovieRecord.card.classList.remove('modal-active');
+        activeMovieRecord.movie.isActiveMovie = false;
+    }
+
+    movie.isActiveMovie = true;
+    card.classList.add('modal-active');
+    activeMovieRecord = { movie, card };
+
+    modalTitle.textContent = movie.title;
+    modalOverview.textContent = movie.overview || "Aucun synopsis disponible.";
+
+    if (movie.release_date) {
+        const dateObj = new Date(movie.release_date);
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const year = dateObj.getFullYear();
+        modalDate.textContent = `${day}/${month}/${year}`;
+    } else {
+        modalDate.textContent = "N/C";
+    }
+
+    if (movie.runtime && movie.runtime > 0) {
+        const hours = Math.floor(movie.runtime / 60);
+        const minutes = movie.runtime % 60;
+        modalDuration.textContent = hours > 0 ? `${hours}h ${minutes}min` : `${minutes}min`;
+    } else {
+        modalDuration.textContent = "N/C";
+    }
+
+    if (movie.trailer) {
+        modalTrailer.style.display = 'inline-flex';
+        modalTrailer.href = movie.trailer;
+    } else {
+        modalTrailer.style.display = 'none';
+    }
+
+    modalGenres.innerHTML = '';
+    if (movie.genres) {
+        movie.genres.forEach(genre => {
+            const span = document.createElement('span');
+            span.className = 'genre-tag';
+            span.textContent = genre;
+            modalGenres.appendChild(span);
+        });
+    }
+
+    modal.classList.add('active');
+}
+
+function closeMovieModal() {
+    if (activeMovieRecord) {
+        activeMovieRecord.card.classList.remove('modal-active');
+        activeMovieRecord.movie.isActiveMovie = false;
+        activeMovieRecord = null;
+    }
+    modal.classList.remove('active');
+}
+
+closeModalBtn.addEventListener('click', closeMovieModal);
+
+randomBtn.addEventListener('click', () => {
+    const validMoviesIndices = [];
+    moviesData.forEach((movie, idx) => {
+        if (movieMatchesFilters(movie)) {
+            validMoviesIndices.push(idx);
+        }
+    });
+
+    if (validMoviesIndices.length === 0) return;
+    closeMovieModal();
+
+    const randomIndex = validMoviesIndices[Math.floor(Math.random() * validMoviesIndices.length)];
+    const luckyMovie = moviesData[randomIndex];
+    recenterOnMovie(luckyMovie);
+
+    setTimeout(() => {
+        const card = cardsElements[randomIndex];
+        if(card) openMovieModal(luckyMovie, card);
+    }, 80);
+});
+
+function updateLoop() {
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+
+    const effectRadius = 550;
+    const maxScale = 2.8;
+    const cullingMargin = 200;
+
+    const easeFactor = isMouseDown ? 0.25 : 0.08;
+    currentPanX += (targetPanX - currentPanX) * easeFactor;
+    currentPanY += (targetPanY - currentPanY) * easeFactor;
+
+    moviesData.forEach((movie, index) => {
+        const card = cardsElements[index];
+        if (!card) return;
+
+        // Skip if the movie doesn't match the filters
+        if (!movieMatchesFilters(movie)) {
+            if (movie.isVisible) {
+                card.style.display = 'none';
+                movie.isVisible = false;
+            }
+            return;
+        }
+
+        const movieCenterX = movie.x * CELL_WIDTH + CELL_WIDTH / 2;
+        const movieCenterY = movie.y * CELL_HEIGHT + CELL_HEIGHT / 2;
+
+        const undistortedScreenX = currentPanX + movieCenterX;
+        const undistortedScreenY = currentPanY + movieCenterY;
+
+        const distX = undistortedScreenX - centerX;
+        const distY = undistortedScreenY - centerY;
+        const distance = Math.sqrt(distX * distX + distY * distY);
+
+        let scale = 1;
+        let pushFactor = 1;
+        let brightness = 0.25;
+
+        if (distance < effectRadius) {
+            const ratio = distance / effectRadius;
+            const zoomFactor = Math.pow(1 - ratio, 2.2);
+            scale = 1 + (maxScale - 1) * zoomFactor;
+            pushFactor = 1 + (maxScale - 1) * Math.pow(1 - ratio, 3.2);
+            brightness = 0.25 + 0.75 * Math.pow(1 - ratio, 1.2);
+        }
+
+        const distortedScreenX = centerX + distX * pushFactor;
+        const distortedScreenY = centerY + distY * pushFactor;
+
+        const inViewport = (
+            distortedScreenX >= -cullingMargin &&
+            distortedScreenX <= screenWidth + cullingMargin &&
+            distortedScreenY >= -cullingMargin &&
+            distortedScreenY <= screenHeight + cullingMargin
+        );
+
+        if (inViewport) {
+            if (!movie.isVisible) {
+                card.style.display = 'flex';
+                movie.isVisible = true;
+            }
+
+            const finalX = distortedScreenX - CARD_WIDTH / 2;
+            const finalY = distortedScreenY - CARD_HEIGHT / 2;
+
+            card.style.transform = `translate3d(${finalX}px, ${finalY}px, 0) scale(${scale})`;
+            card.style.filter = `brightness(${brightness})`;
+
+            if (movie.isActiveMovie) {
+                card.style.zIndex = 25000;
+            } else {
+                card.style.zIndex = Math.round(scale * 1000);
+            }
+
+        } else {
+            if (movie.isVisible) {
+                card.style.display = 'none';
+                movie.isVisible = false;
+            }
+        }
+    });
+
+    requestAnimationFrame(updateLoop);
+}
+
+// Filter button
+filterToggleBtn.addEventListener('click', () => {
+    if (filterSidebar.classList.contains('open')) {
+        filterSidebar.classList.remove('open');
+    } else {
+        filterSidebar.classList.add('open');
+    }
+});
+
+sidebarCloseBtn.addEventListener('click', () => {
+    filterSidebar.classList.remove('open');
+});
+
+resetFiltersBtn.addEventListener('click', () => {
+    activeFilters.genres.clear();
+    document.querySelectorAll('.genre-filter-btn').forEach(btn => btn.classList.remove('active'));
+
+    yearMinInput.value = datasetBounds.minYear;
+    yearMaxInput.value = datasetBounds.maxYear;
+    activeFilters.minYear = datasetBounds.minYear;
+    activeFilters.maxYear = datasetBounds.maxYear;
+    yearMinInput.dispatchEvent(new Event('input'));
+
+    runtimeMinInput.value = datasetBounds.minRuntime;
+    runtimeMaxInput.value = datasetBounds.maxRuntime;
+    activeFilters.minRuntime = datasetBounds.minRuntime;
+    activeFilters.maxRuntime = datasetBounds.maxRuntime;
+    runtimeMinInput.dispatchEvent(new Event('input'));
+
+    closeMovieModal();
+});
+
+// Mouse drag
+viewport.addEventListener('mousedown', (e) => {
+    if (e.button === 0) {
+        isMouseDown = true;
+        hasDragged = false;
+        isDragging = false;
+        mouseDownX = e.clientX;
+        mouseDownY = e.clientY;
+        startX = e.clientX - targetPanX;
+        startY = e.clientY - targetPanY;
+    }
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!isMouseDown) return;
+
+    if (!isDragging) {
+        const dx = e.clientX - mouseDownX;
+        const dy = e.clientY - mouseDownY;
+        if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
+            isDragging = true;
+            hasDragged = true;
+            closeMovieModal();
+        }
+    }
+
+    if (isDragging) {
+        targetPanX = e.clientX - startX;
+        targetPanY = e.clientY - startY;
+    }
+});
+
+document.addEventListener('mouseup', (e) => {
+    if (e.button === 0) {
+        isMouseDown = false;
+        isDragging = false;
+    }
+});
+
+// Search bar
+searchBar.addEventListener('input', (e) => {
+    closeMovieModal();
+    const query = e.target.value.toLowerCase().trim();
+    cardsElements.forEach(card => card.classList.remove('highlighted'));
+    if (query.length < 2) return;
+
+    const matchedIndex = moviesData.findIndex(movie =>
+        movieMatchesFilters(movie) && movie.title.toLowerCase().includes(query)
+    );
+
+    if (matchedIndex !== -1) {
+        const matchedMovie = moviesData[matchedIndex];
+        const card = cardsElements[matchedIndex];
+        card.classList.add('highlighted');
+        recenterOnMovie(matchedMovie);
+
+        setTimeout(() => {
+            openMovieModal(matchedMovie, card);
+        }, 150);
+    }
+});
