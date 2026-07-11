@@ -19,6 +19,7 @@ const modalTrailer = document.getElementById('modal-trailer');
 const modalGenres = document.getElementById('modal-genres');
 const modalOverview = document.getElementById('modal-overview');
 const closeModalBtn = document.querySelector('.close-btn');
+const modalPosterPlaceholder = document.querySelector('.modal-poster-placeholder');
 
 // Filters elements
 const filterToggleBtn = document.getElementById('filter-toggle-btn');
@@ -66,6 +67,21 @@ let mouseDownX, mouseDownY;
 const DRAG_THRESHOLD = 5;
 
 let activeMovieRecord = null;
+
+// ---------------------------------------------------------------
+// Adaptations mobile : on verrouille le zoom du navigateur (pinch,
+// double-tap) car l'appli gère déjà son propre zoom via le fisheye.
+// ---------------------------------------------------------------
+(function lockViewportZoom() {
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (meta) {
+        meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+    }
+})();
+
+function isMobileViewport() {
+    return window.innerWidth <= 768;
+}
 
 Promise.all([
     fetch('data/movie_details.json').then(res => res.json()),
@@ -218,6 +234,31 @@ function recenterOnMovie(movie) {
     targetPanY -= dy;
 }
 
+// ---------------------------------------------------------------
+// Backdrops (mobile uniquement, voir CSS) : sur PC l'effet "fisheye"
+// qui laisse voir la grille derrière la modale/sidebar est conservé
+// tel quel. Sur mobile, un fond assombri apparaît et permet de fermer
+// la modale/sidebar en tapant à côté.
+// ---------------------------------------------------------------
+const modalBackdrop = document.createElement('div');
+modalBackdrop.id = 'modal-backdrop';
+document.body.appendChild(modalBackdrop);
+modalBackdrop.addEventListener('click', closeMovieModal);
+
+const sidebarBackdrop = document.createElement('div');
+sidebarBackdrop.id = 'sidebar-backdrop';
+document.body.appendChild(sidebarBackdrop);
+sidebarBackdrop.addEventListener('click', closeSidebar);
+
+// Image de poster "autonome" affichée dans la modale sur mobile
+// (sur PC, l'espace reste transparent et laisse voir la carte agrandie
+// par l'effet fisheye juste derrière).
+const modalPosterImg = document.createElement('img');
+modalPosterImg.id = 'modal-poster-img';
+modalPosterImg.alt = '';
+modalPosterImg.draggable = false;
+modalPosterPlaceholder.appendChild(modalPosterImg);
+
 function openMovieModal(movie, card) {
     if (activeMovieRecord) {
         activeMovieRecord.card.classList.remove('modal-active');
@@ -230,6 +271,7 @@ function openMovieModal(movie, card) {
 
     modalTitle.textContent = movie.title;
     modalOverview.textContent = movie.overview || "Aucun synopsis disponible.";
+    modalPosterImg.src = movie.poster || '';
 
     if (movie.release_date) {
         const dateObj = new Date(movie.release_date);
@@ -267,6 +309,7 @@ function openMovieModal(movie, card) {
     }
 
     modal.classList.add('active');
+    modalBackdrop.classList.add('active');
 }
 
 function closeMovieModal() {
@@ -276,6 +319,12 @@ function closeMovieModal() {
         activeMovieRecord = null;
     }
     modal.classList.remove('active');
+    modalBackdrop.classList.remove('active');
+}
+
+function closeSidebar() {
+    filterSidebar.classList.remove('open');
+    sidebarBackdrop.classList.remove('open');
 }
 
 closeModalBtn.addEventListener('click', closeMovieModal);
@@ -307,9 +356,13 @@ function updateLoop() {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
 
-    const effectRadius = 550;
-    const maxScale = 2.8;
-    const cullingMargin = 200;
+    // Sur petit écran, un rayon/zoom identique au desktop est disproportionné
+    // (il couvrirait quasi tout l'écran). On adapte le fisheye à la taille
+    // de la fenêtre pour garder plusieurs cartes visibles en même temps.
+    const mobile = isMobileViewport();
+    const effectRadius = mobile ? Math.min(280, screenWidth * 0.6) : 550;
+    const maxScale = mobile ? 2.2 : 2.8;
+    const cullingMargin = mobile ? 120 : 200;
 
     const GRID_WIDTH_PX = GRID_SIZE * CELL_WIDTH;
     const GRID_HEIGHT_PX = GRID_SIZE * CELL_HEIGHT;
@@ -406,15 +459,14 @@ function updateLoop() {
 // Filter button
 filterToggleBtn.addEventListener('click', () => {
     if (filterSidebar.classList.contains('open')) {
-        filterSidebar.classList.remove('open');
+        closeSidebar();
     } else {
         filterSidebar.classList.add('open');
+        sidebarBackdrop.classList.add('open');
     }
 });
 
-sidebarCloseBtn.addEventListener('click', () => {
-    filterSidebar.classList.remove('open');
-});
+sidebarCloseBtn.addEventListener('click', closeSidebar);
 
 resetFiltersBtn.addEventListener('click', () => {
     activeFilters.genres.clear();
@@ -435,25 +487,52 @@ resetFiltersBtn.addEventListener('click', () => {
     closeMovieModal();
 });
 
-// Mouse drag
-viewport.addEventListener('mousedown', (e) => {
-    if (e.button === 0) {
-        isMouseDown = true;
-        hasDragged = false;
-        isDragging = false;
-        mouseDownX = e.clientX;
-        mouseDownY = e.clientY;
-        startX = e.clientX - targetPanX;
-        startY = e.clientY - targetPanY;
+// ---------------------------------------------------------------
+// Pan (déplacement de la grille) : souris ET tactile.
+// Sur mobile, les événements 'mousedown/mousemove/mouseup' ne se
+// déclenchent quasiment jamais pendant un geste au doigt (le navigateur
+// envoie plutôt des 'touchstart/touchmove/touchend'), d'où le drag qui
+// ne fonctionnait pas du tout. On centralise donc la logique et on
+// l'alimente à partir des deux familles d'événements.
+// ---------------------------------------------------------------
+function getPointerPosition(e) {
+    if (e.touches && e.touches.length > 0) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY };
     }
-});
+    if (e.changedTouches && e.changedTouches.length > 0) {
+        return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    }
+    return { x: e.clientX, y: e.clientY };
+}
 
-document.addEventListener('mousemove', (e) => {
+function handleDragStart(e) {
+    if (e.type === 'mousedown' && e.button !== 0) return;
+    // On ignore le pincement à deux doigts (zoom natif désactivé par ailleurs)
+    if (e.touches && e.touches.length > 1) {
+        isMouseDown = false;
+        isDragging = false;
+        return;
+    }
+
+    const pos = getPointerPosition(e);
+    isMouseDown = true;
+    hasDragged = false;
+    isDragging = false;
+    mouseDownX = pos.x;
+    mouseDownY = pos.y;
+    startX = pos.x - targetPanX;
+    startY = pos.y - targetPanY;
+}
+
+function handleDragMove(e) {
     if (!isMouseDown) return;
+    if (e.touches && e.touches.length > 1) return;
+
+    const pos = getPointerPosition(e);
 
     if (!isDragging) {
-        const dx = e.clientX - mouseDownX;
-        const dy = e.clientY - mouseDownY;
+        const dx = pos.x - mouseDownX;
+        const dy = pos.y - mouseDownY;
         if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
             isDragging = true;
             hasDragged = true;
@@ -462,16 +541,42 @@ document.addEventListener('mousemove', (e) => {
     }
 
     if (isDragging) {
-        targetPanX = e.clientX - startX;
-        targetPanY = e.clientY - startY;
+        // Empêche le scroll/rebond de la page pendant le drag (tactile uniquement)
+        if (e.cancelable) e.preventDefault();
+        targetPanX = pos.x - startX;
+        targetPanY = pos.y - startY;
     }
-});
+}
 
-document.addEventListener('mouseup', (e) => {
-    if (e.button === 0) {
-        isMouseDown = false;
-        isDragging = false;
-    }
+function handleDragEnd() {
+    isMouseDown = false;
+    isDragging = false;
+}
+
+// Souris (desktop)
+viewport.addEventListener('mousedown', handleDragStart);
+document.addEventListener('mousemove', handleDragMove);
+document.addEventListener('mouseup', handleDragEnd);
+
+// Tactile (mobile/tablette)
+viewport.addEventListener('touchstart', handleDragStart, { passive: true });
+document.addEventListener('touchmove', handleDragMove, { passive: false });
+document.addEventListener('touchend', handleDragEnd, { passive: true });
+document.addEventListener('touchcancel', handleDragEnd, { passive: true });
+
+// Recentrage doux lors d'un changement de taille de fenêtre (rotation
+// d'écran sur mobile notamment), pour éviter que la grille ne "saute".
+let lastWindowWidth = window.innerWidth;
+let lastWindowHeight = window.innerHeight;
+window.addEventListener('resize', () => {
+    const deltaX = (window.innerWidth - lastWindowWidth) / 2;
+    const deltaY = (window.innerHeight - lastWindowHeight) / 2;
+    targetPanX += deltaX;
+    targetPanY += deltaY;
+    currentPanX += deltaX;
+    currentPanY += deltaY;
+    lastWindowWidth = window.innerWidth;
+    lastWindowHeight = window.innerHeight;
 });
 
 // Search bar

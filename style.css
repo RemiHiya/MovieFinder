@@ -1,3 +1,11 @@
+html {
+    height: 100vh;
+    height: 100dvh;
+    touch-action: none;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
 body {
     margin: 0;
     background-color: #040406;
@@ -5,8 +13,12 @@ body {
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
     height: 100vh;
+    height: 100dvh;
     width: 100vw;
     user-select: none;
+    touch-action: none;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 #search-container {
@@ -67,6 +79,7 @@ body {
     right: 0;
     width: 350px;
     height: 100vh;
+    height: 100dvh;
     background: rgba(15, 15, 25, 0.95);
     backdrop-filter: blur(20px);
     box-shadow: -10px 0 30px rgba(0,0,0,0.5);
@@ -76,6 +89,7 @@ body {
     display: flex;
     flex-direction: column;
     border-left: 1px solid rgba(255, 255, 255, 0.08);
+    touch-action: pan-y;
 }
 .sidebar.open {
     transform: translateX(0);
@@ -94,6 +108,7 @@ body {
 .sidebar-content {
     flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 24px;
     display: flex;
     flex-direction: column;
@@ -140,6 +155,7 @@ body {
     background: none;
     outline: none;
     margin: 0;
+    touch-action: pan-y;
 }
 
 .range-slider-wrapper::before {
@@ -196,6 +212,7 @@ body {
     width: 100%;
     height: 100%;
     cursor: grab;
+    touch-action: none;
 }
 #viewport:active { cursor: grabbing; }
 #grid-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -245,15 +262,22 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-154px, -50%);
-    z-index: 24000;
+    z-index: 30000; /* Assure que la modale est au-dessus de tout */
     width: 720px;
     height: 462px;
     pointer-events: none;
-    visibility: hidden;
-    transition: visibility 0.4s;
+    opacity: 0; /* Remplacement de visibility par opacity */
+    transition: opacity 0.4s ease;
 }
-.modal.active { visibility: visible; }
-.modal-poster-placeholder { width: 308px; height: 100%; flex-shrink: 0; pointer-events: none; }
+.modal.active { opacity: 1; pointer-events: auto; }
+.modal-poster-placeholder { width: 308px; height: 100%; flex-shrink: 0; pointer-events: none; position: relative; }
+
+#modal-poster-img {
+    display: none;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
 .modal-info-wrapper { flex: 1; height: 100%; overflow: hidden; pointer-events: none; }
 .modal-info-panel {
     width: 100%;
@@ -273,7 +297,7 @@ body {
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .modal.active .modal-info-panel { transform: translateX(0); }
-.close-btn { position: absolute; top: 15px; right: 20px; color: #666; font-size: 24px; cursor: pointer; transition: color 0.2s; }
+.close-btn { position: absolute; top: 15px; right: 20px; color: #666; font-size: 24px; cursor: pointer; transition: color 0.2s; z-index: 2; }
 .close-btn:hover { color: #ff4757; }
 
 #modal-title { margin: 0; font-size: 24px; font-weight: 600; color: #fff; line-height: 1.2; padding-right: 20px; }
@@ -298,6 +322,7 @@ body {
     line-height: 1.55;
     max-height: 170px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding-right: 6px;
 }
 #modal-overview::-webkit-scrollbar { width: 4px; }
@@ -321,3 +346,142 @@ body {
 }
 .trailer-btn svg { width: 18px; height: 18px; }
 .trailer-btn:hover { background: #e2e2e5; transform: translateY(-2px); }
+
+/* --- FONDS ASSOMBRIS --- */
+#modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 23000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s;
+    display: none;
+}
+#modal-backdrop.active { opacity: 1; pointer-events: auto; }
+
+#sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 14000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    display: none;
+}
+#sidebar-backdrop.open { opacity: 1; pointer-events: auto; }
+
+/* =================================================================
+   ADAPTATIONS MOBILE / PETITS ÉCRANS
+   ================================================================= */
+@media (max-width: 768px) {
+
+    #search-container {
+        width: calc(100% - 24px);
+        max-width: 480px;
+        top: max(12px, env(safe-area-inset-top));
+        border-radius: 14px;
+    }
+
+    #search-bar {
+        padding: 14px 16px;
+        font-size: 16px;
+        min-width: 0;
+    }
+
+    #filter-toggle-btn, #random-btn {
+        padding: 0 14px;
+        min-width: 44px;
+    }
+
+    .sidebar {
+        width: 85vw;
+        max-width: 350px;
+    }
+
+    #sidebar-backdrop { display: block; }
+
+    .genre-filter-btn {
+        padding: 9px 16px;
+        font-size: 13px;
+    }
+
+    .range-slider-wrapper input[type="range"]::-webkit-slider-thumb {
+        width: 24px;
+        height: 24px;
+    }
+    .range-slider-wrapper input[type="range"]::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+    }
+
+    /* La modale en version mobile */
+    #modal-backdrop { display: block; }
+
+    .modal {
+        flex-direction: column;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90vw;
+        max-width: 400px;
+        height: auto;
+        max-height: 85dvh;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+
+        /* Correction Mobile : Opacité + Z-index élevé */
+        z-index: 30000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.4s ease;
+    }
+
+    .modal.active { opacity: 1; pointer-events: auto; }
+
+    .modal-poster-placeholder {
+        width: 100%;
+        height: 45vw;
+        max-height: 220px;
+        min-height: 160px;
+        flex-shrink: 0;
+    }
+
+    #modal-poster-img {
+        display: block;
+    }
+
+    .modal-info-wrapper {
+        width: 100%;
+        height: auto;
+        flex: 1;
+        overflow: visible;
+    }
+
+    .modal-info-panel {
+        border-radius: 0;
+        border-left: 1px solid rgba(255, 255, 255, 0.1);
+        border-top: none;
+        padding: 22px 24px 24px;
+        max-height: calc(85dvh - 160px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        transform: translateY(16px);
+        opacity: 0;
+        transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s;
+    }
+    .modal.active .modal-info-panel {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    #modal-title { font-size: 20px; }
+    #modal-overview { max-height: none; }
+}
+
+@media (max-width: 420px) {
+    #search-bar { padding: 13px 14px; }
+    .modal { width: 92vw; }
+}
