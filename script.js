@@ -1,9 +1,16 @@
 const GRID_SIZE = 100;
 
-const CELL_WIDTH = 145;
-const CELL_HEIGHT = 210;
-const CARD_WIDTH = 110;
-const CARD_HEIGHT = 165;
+// --- Responsive sizing -------------------------------------------------
+// IS_MOBILE is decided once at load. CARD_WIDTH / CARD_HEIGHT below MUST
+// stay in sync with the .movie-card width/height set in the
+// `@media (max-width: 768px)` block of style.css.
+const MOBILE_BREAKPOINT = 768;
+const IS_MOBILE = window.innerWidth <= MOBILE_BREAKPOINT;
+
+const CELL_WIDTH = IS_MOBILE ? 115 : 145;
+const CELL_HEIGHT = IS_MOBILE ? 165 : 210;
+const CARD_WIDTH = IS_MOBILE ? 88 : 110;
+const CARD_HEIGHT = IS_MOBILE ? 132 : 165;
 
 const viewport = document.getElementById('viewport');
 const container = document.getElementById('grid-container');
@@ -58,12 +65,13 @@ let targetPanY = window.innerHeight / 2 - (GRID_SIZE * CELL_HEIGHT) / 2;
 let currentPanX = targetPanX;
 let currentPanY = targetPanY;
 
+// isMouseDown / isDragging etc. are shared between mouse AND touch input.
 let isMouseDown = false;
 let isDragging = false;
 let hasDragged = false;
 let startX, startY;
 let mouseDownX, mouseDownY;
-const DRAG_THRESHOLD = 5;
+const DRAG_THRESHOLD = IS_MOBILE ? 8 : 5; // a bit more slack for touch jitter
 
 let activeMovieRecord = null;
 
@@ -198,6 +206,15 @@ function renderGrid() {
     });
 }
 
+// On mobile the modal opens as a bottom sheet that covers most of the
+// lower part of the screen, so we bias the "focus" point of the fisheye
+// effect upward, both when idle and when recentering on a movie. This
+// keeps the enlarged poster visible above the sheet instead of hidden
+// behind it.
+function getFocusY() {
+    return IS_MOBILE ? window.innerHeight * 0.38 : window.innerHeight / 2;
+}
+
 function recenterOnMovie(movie) {
     const targetX = movie.x * CELL_WIDTH + CELL_WIDTH / 2;
     const targetY = movie.y * CELL_HEIGHT + CELL_HEIGHT / 2;
@@ -206,7 +223,7 @@ function recenterOnMovie(movie) {
     const GRID_HEIGHT_PX = GRID_SIZE * CELL_HEIGHT;
 
     let currentWorldCenterX = window.innerWidth / 2 - targetPanX;
-    let currentWorldCenterY = window.innerHeight / 2 - targetPanY;
+    let currentWorldCenterY = getFocusY() - targetPanY;
 
     let dx = targetX - currentWorldCenterX;
     let dy = targetY - currentWorldCenterY;
@@ -303,13 +320,16 @@ randomBtn.addEventListener('click', () => {
 
 function updateLoop() {
     const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
+    const centerY = getFocusY();
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
 
-    const effectRadius = 550;
-    const maxScale = 2.8;
-    const cullingMargin = 200;
+    // Effect tuning is recomputed every frame from the *current* window
+    // size, so it stays correct across resizes / orientation changes.
+    const viewportMin = Math.min(window.innerWidth, window.innerHeight);
+    const effectRadius = IS_MOBILE ? Math.max(240, viewportMin * 0.52) : 550;
+    const maxScale = IS_MOBILE ? 2.3 : 2.8;
+    const cullingMargin = IS_MOBILE ? 140 : 200;
 
     const GRID_WIDTH_PX = GRID_SIZE * CELL_WIDTH;
     const GRID_HEIGHT_PX = GRID_SIZE * CELL_HEIGHT;
@@ -435,7 +455,7 @@ resetFiltersBtn.addEventListener('click', () => {
     closeMovieModal();
 });
 
-// Mouse drag
+// --- Mouse drag ---------------------------------------------------------
 viewport.addEventListener('mousedown', (e) => {
     if (e.button === 0) {
         isMouseDown = true;
@@ -473,6 +493,65 @@ document.addEventListener('mouseup', (e) => {
         isDragging = false;
     }
 });
+
+// --- Touch drag (mobile / tablet) ---------------------------------------
+// Mirrors the mouse handlers above, using the same isMouseDown / isDragging
+// / hasDragged state so all the existing pan, fisheye and click-suppression
+// logic keeps working unchanged.
+viewport.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+
+    isMouseDown = true;
+    hasDragged = false;
+    isDragging = false;
+    mouseDownX = touch.clientX;
+    mouseDownY = touch.clientY;
+    startX = touch.clientX - targetPanX;
+    startY = touch.clientY - targetPanY;
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+    if (!isMouseDown) return;
+
+    if (e.touches.length !== 1) {
+        // A second finger came down (pinch etc.) — bail out of the drag.
+        isMouseDown = false;
+        isDragging = false;
+        return;
+    }
+
+    const touch = e.touches[0];
+
+    if (!isDragging) {
+        const dx = touch.clientX - mouseDownX;
+        const dy = touch.clientY - mouseDownY;
+        if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
+            isDragging = true;
+            hasDragged = true;
+            closeMovieModal();
+        }
+    }
+
+    if (isDragging) {
+        // Prevent the page/browser from scrolling or rubber-banding while
+        // the user is panning the grid.
+        e.preventDefault();
+        targetPanX = touch.clientX - startX;
+        targetPanY = touch.clientY - startY;
+    }
+}, { passive: false });
+
+function endTouchDrag() {
+    isMouseDown = false;
+    isDragging = false;
+}
+document.addEventListener('touchend', endTouchDrag);
+document.addEventListener('touchcancel', endTouchDrag);
+
+// Avoid the native long-press context menu / callout popping up over a
+// card while the user is trying to drag the grid on mobile.
+viewport.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // Search bar
 searchBar.addEventListener('input', (e) => {

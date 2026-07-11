@@ -1,3 +1,12 @@
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    height: 100%;
+}
+
 body {
     margin: 0;
     background-color: #040406;
@@ -5,8 +14,10 @@ body {
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
     height: 100vh;
+    height: 100dvh; /* accounts for mobile browser address bars */
     width: 100vw;
     user-select: none;
+    overscroll-behavior: none; /* stop pull-to-refresh / bounce on mobile */
 }
 
 #search-container {
@@ -16,6 +27,7 @@ body {
     transform: translateX(-50%);
     z-index: 10000;
     width: 480px;
+    max-width: calc(100vw - 24px);
     box-shadow: 0 10px 30px rgba(0,0,0,0.7);
     border-radius: 12px;
     overflow: hidden;
@@ -27,6 +39,7 @@ body {
 
 #search-bar {
     flex: 1;
+    min-width: 0;
     padding: 16px 22px;
     background: transparent;
     border: none;
@@ -47,6 +60,7 @@ body {
     justify-content: center;
     transition: color 0.2s, transform 0.2s;
     border-left: 1px solid rgba(255, 255, 255, 0.05);
+    touch-action: manipulation;
 }
 #filter-toggle-btn svg, #random-btn svg {
     width: 20px;
@@ -67,6 +81,7 @@ body {
     right: 0;
     width: 350px;
     height: 100vh;
+    height: 100dvh;
     background: rgba(15, 15, 25, 0.95);
     backdrop-filter: blur(20px);
     box-shadow: -10px 0 30px rgba(0,0,0,0.5);
@@ -76,6 +91,7 @@ body {
     display: flex;
     flex-direction: column;
     border-left: 1px solid rgba(255, 255, 255, 0.08);
+    touch-action: pan-y; /* allow normal vertical scrolling inside */
 }
 .sidebar.open {
     transform: translateX(0);
@@ -88,12 +104,13 @@ body {
     align-items: center;
 }
 .sidebar-header h3 { margin: 0; font-size: 20px; color: #fff; }
-#sidebar-close-btn { font-size: 28px; color: #aaa; cursor: pointer; transition: color 0.2s; }
+#sidebar-close-btn { font-size: 28px; color: #aaa; cursor: pointer; transition: color 0.2s; padding: 4px 8px; touch-action: manipulation; }
 #sidebar-close-btn:hover { color: #ff4757; }
 
 .sidebar-content {
     flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 24px;
     display: flex;
     flex-direction: column;
@@ -115,6 +132,7 @@ body {
     font-size: 12px;
     cursor: pointer;
     transition: all 0.2s;
+    touch-action: manipulation;
 }
 .genre-filter-btn:hover {
     background: rgba(255, 255, 255, 0.1);
@@ -131,6 +149,7 @@ body {
     height: 30px;
     display: flex;
     align-items: center;
+    touch-action: pan-y;
 }
 .range-slider-wrapper input[type="range"] {
     position: absolute;
@@ -162,6 +181,7 @@ body {
     z-index: 2;
     position: relative;
     box-shadow: 0 0 8px rgba(0,0,0,0.5);
+    touch-action: none;
 }
 .range-slider-wrapper input[type="range"]::-moz-range-thumb {
     width: 18px;
@@ -173,6 +193,7 @@ body {
     pointer-events: auto;
     z-index: 2;
     box-shadow: 0 0 8px rgba(0,0,0,0.5);
+    touch-action: none;
 }
 
 #reset-filters-btn {
@@ -185,6 +206,7 @@ body {
     cursor: pointer;
     font-weight: 600;
     transition: all 0.2s;
+    touch-action: manipulation;
 }
 #reset-filters-btn:hover {
     background: #ff4757;
@@ -196,6 +218,8 @@ body {
     width: 100%;
     height: 100%;
     cursor: grab;
+    touch-action: none; /* we handle panning ourselves via JS */
+    -webkit-user-select: none;
 }
 #viewport:active { cursor: grabbing; }
 #grid-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -216,8 +240,17 @@ body {
     filter: brightness(0.25);
     will-change: transform, filter;
     transition: border-color 0.2s, box-shadow 0.2s, filter 0.2s;
+    touch-action: none;
 }
-.movie-card img { width: 100%; height: 100%; object-fit: cover; pointer-events: auto; cursor: pointer; }
+.movie-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: auto;
+    cursor: pointer;
+    -webkit-user-drag: none;
+    -webkit-touch-callout: none; /* no iOS "save image" long-press menu */
+}
 .movie-card.modal-active {
     border: 3px solid #5352ed;
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(83, 82, 237, 0.4);
@@ -271,9 +304,10 @@ body {
     pointer-events: auto;
     transform: translateX(-100%);
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    touch-action: pan-y;
 }
 .modal.active .modal-info-panel { transform: translateX(0); }
-.close-btn { position: absolute; top: 15px; right: 20px; color: #666; font-size: 24px; cursor: pointer; transition: color 0.2s; }
+.close-btn { position: absolute; top: 15px; right: 20px; color: #666; font-size: 24px; cursor: pointer; transition: color 0.2s; padding: 4px 8px; touch-action: manipulation; }
 .close-btn:hover { color: #ff4757; }
 
 #modal-title { margin: 0; font-size: 24px; font-weight: 600; color: #fff; line-height: 1.2; padding-right: 20px; }
@@ -298,6 +332,7 @@ body {
     line-height: 1.55;
     max-height: 170px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding-right: 6px;
 }
 #modal-overview::-webkit-scrollbar { width: 4px; }
@@ -318,6 +353,112 @@ body {
     font-weight: 600;
     transition: background 0.2s, transform 0.2s;
     width: fit-content;
+    touch-action: manipulation;
 }
 .trailer-btn svg { width: 18px; height: 18px; }
 .trailer-btn:hover { background: #e2e2e5; transform: translateY(-2px); }
+
+/* =========================================================================
+   MOBILE ADAPTATIONS (<= 768px)
+   Card size here MUST stay in sync with CARD_WIDTH / CARD_HEIGHT in script.js
+   ========================================================================= */
+@media (max-width: 768px) {
+
+    #search-container {
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: none;
+        transform: none;
+        border-radius: 14px;
+    }
+
+    #search-bar {
+        padding: 13px 14px;
+        font-size: 16px; /* keeps iOS Safari from auto-zooming on focus */
+    }
+
+    #filter-toggle-btn, #random-btn {
+        padding: 0 14px;
+    }
+    #filter-toggle-btn svg, #random-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .sidebar {
+        width: 85vw;
+        max-width: 340px;
+    }
+
+    .movie-card {
+        width: 88px;
+        height: 132px;
+    }
+
+    #center-target {
+        top: 38%;
+    }
+
+    /* The desktop modal relies on a fixed 720px layout with the poster
+       "hiding" behind an invisible placeholder. That trick doesn't work on
+       narrow screens, so on mobile the modal becomes a bottom sheet
+       instead, and the enlarged card (see getFocusY() in script.js) is
+       what visually plays the role of the poster, above the sheet. */
+    .modal {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: auto;
+        max-height: 78vh;
+        transform: translateY(100%);
+        transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.4s;
+    }
+    .modal.active {
+        transform: translateY(0);
+    }
+
+    .modal-poster-placeholder {
+        display: none;
+    }
+
+    .modal-info-wrapper {
+        width: 100%;
+        height: auto;
+        max-height: 78vh;
+        overflow: visible;
+    }
+
+    .modal-info-panel {
+        border-radius: 20px 20px 0 0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-bottom: none;
+        padding: 22px 20px calc(20px + env(safe-area-inset-bottom));
+        max-height: 78vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        transform: none; /* override the desktop slide-in-from-left */
+    }
+    .modal.active .modal-info-panel {
+        transform: none;
+    }
+
+    #modal-title {
+        font-size: 20px;
+    }
+
+    #modal-overview {
+        max-height: 30vh;
+    }
+}
+
+@media (max-width: 380px) {
+    #search-container {
+        left: 8px;
+        right: 8px;
+        top: 8px;
+    }
+}
