@@ -259,15 +259,16 @@ body {
 .modal {
     display: flex;
     position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-154px, -50%);
-    z-index: 30000; /* Assure que la modale est au-dessus de tout */
+    top: 0;
+    left: 0;
+    transform-origin: 154px 231px; /* Centre de l'emplacement du poster */
+    z-index: 30000;
     width: 720px;
     height: 462px;
     pointer-events: none;
-    opacity: 0; /* Remplacement de visibility par opacity */
+    opacity: 0;
     transition: opacity 0.4s ease;
+    will-change: transform, opacity;
 }
 .modal.active { opacity: 1; pointer-events: auto; }
 .modal-poster-placeholder { width: 308px; height: 100%; flex-shrink: 0; pointer-events: none; position: relative; }
@@ -421,9 +422,9 @@ body {
 
     .modal {
         flex-direction: column;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        top: 0;
+        left: 0;
+        transform-origin: 50% 50%;
         width: 90vw;
         max-width: 400px;
         height: auto;
@@ -431,8 +432,6 @@ body {
         border-radius: 16px;
         overflow: hidden;
         box-shadow: 0 20px 60px rgba(0,0,0,0.8);
-
-        /* Correction Mobile : Opacité + Z-index élevé */
         z-index: 30000;
         opacity: 0;
         pointer-events: none;

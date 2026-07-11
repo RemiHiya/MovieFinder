@@ -67,6 +67,8 @@ let mouseDownX, mouseDownY;
 const DRAG_THRESHOLD = 5;
 
 let activeMovieRecord = null;
+let modalTargetMovie = null; // Suit le film auquel la modale est physiquement attachée
+let modalRect = { width: 0, height: 0 }; // Garde en mémoire la taille de la modale
 
 // ---------------------------------------------------------------
 // Adaptations mobile : on verrouille le zoom du navigateur (pinch,
@@ -268,6 +270,7 @@ function openMovieModal(movie, card) {
     movie.isActiveMovie = true;
     card.classList.add('modal-active');
     activeMovieRecord = { movie, card };
+    modalTargetMovie = movie;
 
     modalTitle.textContent = movie.title;
     modalOverview.textContent = movie.overview || "Aucun synopsis disponible.";
@@ -310,6 +313,10 @@ function openMovieModal(movie, card) {
 
     modal.classList.add('active');
     modalBackdrop.classList.add('active');
+
+    // Sauvegarde des dimensions de la modale pour le calcul de position mobile
+    modalRect.width = modal.offsetWidth;
+    modalRect.height = modal.offsetHeight;
 }
 
 function closeMovieModal() {
@@ -317,6 +324,8 @@ function closeMovieModal() {
         activeMovieRecord.card.classList.remove('modal-active');
         activeMovieRecord.movie.isActiveMovie = false;
         activeMovieRecord = null;
+        // On ne met PAS modalTargetMovie à null pour que la modale
+        // continue de suivre la carte pendant l'animation de fermeture (fondu).
     }
     modal.classList.remove('active');
     modalBackdrop.classList.remove('active');
@@ -375,13 +384,9 @@ function updateLoop() {
         const card = cardsElements[index];
         if (!card) return;
 
-        if (!movieMatchesFilters(movie)) {
-            if (movie.isVisible) {
-                card.style.display = 'none';
-                movie.isVisible = false;
-            }
-            return;
-        }
+        // La logique d'affichage doit toujours calculer la position exacte de modalTargetMovie,
+        // même s'il est filtré, de façon à gérer la sortie de modale doucement
+        const isFilteredOut = !movieMatchesFilters(movie);
 
         const movieCenterX = movie.x * CELL_WIDTH + CELL_WIDTH / 2;
         const movieCenterY = movie.y * CELL_HEIGHT + CELL_HEIGHT / 2;
@@ -418,6 +423,32 @@ function updateLoop() {
 
         const distortedScreenX = centerX + distX * pushFactor;
         const distortedScreenY = centerY + distY * pushFactor;
+
+        // ATTACHEMENT DE LA MODALE
+        if (movie === modalTargetMovie) {
+            const modalScale = scale / maxScale; // Echelle relative (1 quand on est au centre de l'écran)
+
+            if (mobile) {
+                const w = modalRect.width || (window.innerWidth * 0.9);
+                const h = modalRect.height || 400;
+                const mx = distortedScreenX - w / 2;
+                const my = distortedScreenY - h / 2;
+                modal.style.transform = `translate3d(${mx}px, ${my}px, 0) scale(${modalScale})`;
+            } else {
+                // Sur PC, le centre de l'emplacement du poster (largeur 308px, hauteur 462px) est à (154, 231)
+                const mx = distortedScreenX - 154;
+                const my = distortedScreenY - 231;
+                modal.style.transform = `translate3d(${mx}px, ${my}px, 0) scale(${modalScale})`;
+            }
+        }
+
+        if (isFilteredOut) {
+            if (movie.isVisible) {
+                card.style.display = 'none';
+                movie.isVisible = false;
+            }
+            return;
+        }
 
         // Culling (on n'affiche que ce qui est à l'écran + marge)
         const inViewport = (
@@ -489,11 +520,6 @@ resetFiltersBtn.addEventListener('click', () => {
 
 // ---------------------------------------------------------------
 // Pan (déplacement de la grille) : souris ET tactile.
-// Sur mobile, les événements 'mousedown/mousemove/mouseup' ne se
-// déclenchent quasiment jamais pendant un geste au doigt (le navigateur
-// envoie plutôt des 'touchstart/touchmove/touchend'), d'où le drag qui
-// ne fonctionnait pas du tout. On centralise donc la logique et on
-// l'alimente à partir des deux familles d'événements.
 // ---------------------------------------------------------------
 function getPointerPosition(e) {
     if (e.touches && e.touches.length > 0) {
@@ -507,7 +533,6 @@ function getPointerPosition(e) {
 
 function handleDragStart(e) {
     if (e.type === 'mousedown' && e.button !== 0) return;
-    // On ignore le pincement à deux doigts (zoom natif désactivé par ailleurs)
     if (e.touches && e.touches.length > 1) {
         isMouseDown = false;
         isDragging = false;
@@ -541,7 +566,6 @@ function handleDragMove(e) {
     }
 
     if (isDragging) {
-        // Empêche le scroll/rebond de la page pendant le drag (tactile uniquement)
         if (e.cancelable) e.preventDefault();
         targetPanX = pos.x - startX;
         targetPanY = pos.y - startY;
@@ -564,8 +588,7 @@ document.addEventListener('touchmove', handleDragMove, { passive: false });
 document.addEventListener('touchend', handleDragEnd, { passive: true });
 document.addEventListener('touchcancel', handleDragEnd, { passive: true });
 
-// Recentrage doux lors d'un changement de taille de fenêtre (rotation
-// d'écran sur mobile notamment), pour éviter que la grille ne "saute".
+// Recentrage doux lors d'un changement de taille de fenêtre
 let lastWindowWidth = window.innerWidth;
 let lastWindowHeight = window.innerHeight;
 window.addEventListener('resize', () => {
@@ -577,6 +600,11 @@ window.addEventListener('resize', () => {
     currentPanY += deltaY;
     lastWindowWidth = window.innerWidth;
     lastWindowHeight = window.innerHeight;
+
+    if (modal.classList.contains('active')) {
+        modalRect.width = modal.offsetWidth;
+        modalRect.height = modal.offsetHeight;
+    }
 });
 
 // Search bar
