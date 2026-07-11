@@ -87,12 +87,30 @@ function isMobileViewport() {
     return window.innerWidth <= 768;
 }
 
+const adultToggle = document.getElementById('adult-toggle');
+
+let detailsMapCache = null;
+let standardGridCache = null;
+let adultGridCache = null;
+
 Promise.all([
     fetch('data/movie_details.json').then(res => res.json()),
-    fetch('data/movie_grid.json').then(res => res.json())
-]).then(([detailsMap, gridData]) => {
+    fetch('data/movie_grid.json').then(res => res.json()),
+    fetch('data/movie_grid_adult.json').then(res => res.json()).catch(() => null)
+]).then(([detailsMap, standardGrid, adultGrid]) => {
+    detailsMapCache = detailsMap;
+    standardGridCache = standardGrid;
+    adultGridCache = adultGrid;
+
+    loadGridDataset(false);
+    requestAnimationFrame(updateLoop);
+}).catch(err => console.error("Unable to load data :", err));
+
+function loadGridDataset(isAdultEnabled) {
+    const gridData = (isAdultEnabled && adultGridCache) ? adultGridCache : standardGridCache;
+
     moviesData = gridData.map(gridItem => {
-        const details = detailsMap[gridItem.id.toString()];
+        const details = detailsMapCache[gridItem.id.toString()];
         return {
             ...gridItem,
             ...details
@@ -101,8 +119,12 @@ Promise.all([
 
     analyzeDatasetAndSetupFilters();
     renderGrid();
-    requestAnimationFrame(updateLoop);
-}).catch(err => console.error("Erreur de chargement des données:", err));
+}
+
+adultToggle.addEventListener('change', (e) => {
+    closeMovieModal();
+    loadGridDataset(e.target.checked);
+});
 
 function analyzeDatasetAndSetupFilters() {
     const allGenres = new Set();
@@ -126,6 +148,7 @@ function analyzeDatasetAndSetupFilters() {
     setupSliderElement(yearMinInput, yearMaxInput, datasetBounds.minYear, datasetBounds.maxYear, yearLabel, 'ans');
     setupSliderElement(runtimeMinInput, runtimeMaxInput, datasetBounds.minRuntime, datasetBounds.maxRuntime, runtimeLabel, 'min');
 
+    genresContainer.innerHTML = "";
     Array.from(allGenres).sort().forEach(genre => {
         const btn = document.createElement('button');
         btn.className = 'genre-filter-btn';

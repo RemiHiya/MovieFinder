@@ -30,7 +30,8 @@ def process_and_add_movies(movies_list):
                 "title": m['title'],
                 "poster": f"https://image.tmdb.org/t/p/w185{m['poster_path']}",
                 "genres": m_genres,
-                "overview": m['overview']
+                "overview": m['overview'],
+                "adult": m.get('adult', False)
             }
             added_count += 1
     return added_count
@@ -68,7 +69,8 @@ if len(movie_ids) < TOTAL_MOVIES:
                 discover_query = tmdb.Discover().movie(
                     primary_release_year=year,
                     sort_by='popularity.desc',
-                    page=current_page
+                    page=current_page,
+                    include_adult=True
                 )
                 results = discover_query.get('results', [])
                 total_pages = discover_query.get('total_pages', 0)

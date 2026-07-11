@@ -14,23 +14,22 @@ except FileNotFoundError:
     print("Error: The file 'movie_details.json' cannot be found. Run movie_list.py first.")
     exit()
 
-print("Enriching movie details (Keywords, Runtime, Trailer, Date)...")
+print("Enriching movie details (Keywords, Runtime, Trailer, Date, Adult)...")
 
 total_movies = len(movie_details)
 processed = 0
 
 for movie_id_str, details in movie_details.items():
-    # If 'keywords' is already present, skip (allows resuming if the script crashes)
     if 'keywords' in details:
         processed += 1
         continue
 
     try:
-        # Append videos and keywords in a single API request
         info = tmdb.Movies(int(movie_id_str)).info(append_to_response='videos,keywords')
 
         details['runtime'] = info.get('runtime', 0)
         details['release_date'] = info.get('release_date', '')
+        details['adult'] = details.get('adult', info.get('adult', False))
 
         # Trailer extraction
         trailer_url = None
@@ -48,15 +47,11 @@ for movie_id_str, details in movie_details.items():
         processed += 1
         if processed % 100 == 0:
             print(f"Progress: {processed}/{total_movies} movies enriched...")
-            # Intermediate save every 100 requests
             save_to_json('data/movie_details.json', movie_details)
-
-        #time.sleep(0.05)
 
     except Exception as e:
         print(f"Error on movie ID {movie_id_str}: {e}")
         time.sleep(1)
 
-# Final save
 save_to_json('data/movie_details.json', movie_details)
 print("\nSuccess: 'movie_details.json' has been updated with all required information.")
