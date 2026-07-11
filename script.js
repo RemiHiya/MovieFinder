@@ -8,6 +8,7 @@ const CARD_HEIGHT = 165;
 const viewport = document.getElementById('viewport');
 const container = document.getElementById('grid-container');
 const searchBar = document.getElementById('search-bar');
+const clearSearchBtn = document.getElementById('clear-search-btn');
 const randomBtn = document.getElementById('random-btn');
 
 // Modal Elements
@@ -72,8 +73,8 @@ let mouseDownX, mouseDownY;
 const DRAG_THRESHOLD = 5;
 
 let activeMovieRecord = null;
-let modalTargetMovie = null; // Suit le film auquel la modale est physiquement attachée
-let modalRect = { width: 0, height: 0 }; // Garde en mémoire la taille de la modale
+let modalTargetMovie = null;
+let modalRect = { width: 0, height: 0 };
 
 (function lockViewportZoom() {
     const meta = document.querySelector('meta[name="viewport"]');
@@ -261,14 +262,12 @@ function openVideoModal(url) {
         youtubeIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
         videoModal.classList.add('active');
     } else {
-        // Fallback si le lien n'est pas un lien YouTube standard
         window.open(url, '_blank');
     }
 }
 
 function closeVideoModal() {
     videoModal.classList.remove('active');
-    // On vide la src de l'iframe après l'animation de fermeture pour couper le son
     setTimeout(() => {
         youtubeIframe.src = '';
     }, 300);
@@ -276,12 +275,10 @@ function closeVideoModal() {
 
 videoCloseBtn.addEventListener('click', closeVideoModal);
 videoModal.addEventListener('click', (e) => {
-    // Ferme si on clique sur l'arrière-plan (en dehors de l'iframe)
     if (e.target === videoModal) {
         closeVideoModal();
     }
 });
-// -----------------------
 
 function openMovieModal(movie, card) {
     if (activeMovieRecord) {
@@ -316,11 +313,10 @@ function openMovieModal(movie, card) {
         modalDuration.textContent = "N/C";
     }
 
-    // GESTION DU BOUTON TRAILER MODIFIEE POUR LA MODAL VIDEO
     if (movie.trailer) {
         modalTrailer.style.display = 'inline-flex';
         modalTrailer.onclick = (e) => {
-            e.preventDefault(); // Empêche de scroller en haut de page avec href="#"
+            e.preventDefault();
             openVideoModal(movie.trailer);
         };
     } else {
@@ -612,8 +608,12 @@ window.addEventListener('resize', () => {
 });
 
 searchBar.addEventListener('input', (e) => {
+    const rawVal = e.target.value;
+
+    clearSearchBtn.style.display = rawVal.length > 0 ? 'flex' : 'none';
+
     closeMovieModal();
-    const query = e.target.value.toLowerCase().trim();
+    const query = rawVal.toLowerCase().trim();
     cardsElements.forEach(card => card.classList.remove('highlighted'));
     if (query.length < 2) return;
 
@@ -631,4 +631,12 @@ searchBar.addEventListener('input', (e) => {
             openMovieModal(matchedMovie, card);
         }, 150);
     }
+});
+
+clearSearchBtn.addEventListener('click', () => {
+    searchBar.value = '';
+    clearSearchBtn.style.display = 'none';
+    cardsElements.forEach(card => card.classList.remove('highlighted'));
+    closeMovieModal();
+    searchBar.focus();
 });
