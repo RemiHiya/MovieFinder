@@ -21,6 +21,11 @@ const modalOverview = document.getElementById('modal-overview');
 const closeModalBtn = document.querySelector('.close-btn');
 const modalPosterPlaceholder = document.querySelector('.modal-poster-placeholder');
 
+// Video Modal Elements
+const videoModal = document.getElementById('video-modal');
+const youtubeIframe = document.getElementById('youtube-iframe');
+const videoCloseBtn = document.querySelector('.video-close-btn');
+
 // Filters elements
 const filterToggleBtn = document.getElementById('filter-toggle-btn');
 const filterSidebar = document.getElementById('filter-sidebar');
@@ -70,10 +75,6 @@ let activeMovieRecord = null;
 let modalTargetMovie = null; // Suit le film auquel la modale est physiquement attachée
 let modalRect = { width: 0, height: 0 }; // Garde en mémoire la taille de la modale
 
-// ---------------------------------------------------------------
-// Adaptations mobile : on verrouille le zoom du navigateur (pinch,
-// double-tap) car l'appli gère déjà son propre zoom via le fisheye.
-// ---------------------------------------------------------------
 (function lockViewportZoom() {
     const meta = document.querySelector('meta[name="viewport"]');
     if (meta) {
@@ -89,7 +90,6 @@ Promise.all([
     fetch('data/movie_details.json').then(res => res.json()),
     fetch('data/movie_grid.json').then(res => res.json())
 ]).then(([detailsMap, gridData]) => {
-
     moviesData = gridData.map(gridItem => {
         const details = detailsMap[gridItem.id.toString()];
         return {
@@ -105,7 +105,6 @@ Promise.all([
 
 function analyzeDatasetAndSetupFilters() {
     const allGenres = new Set();
-
     moviesData.forEach(movie => {
         movie.year = movie.release_date ? parseInt(movie.release_date.split('-')[0]) : null;
         movie.runtime = movie.runtime || 0;
@@ -118,17 +117,14 @@ function analyzeDatasetAndSetupFilters() {
         if (movie.runtime > datasetBounds.maxRuntime || datasetBounds.maxRuntime === -1) datasetBounds.maxRuntime = movie.runtime;
     });
 
-    // Initial filters
     activeFilters.minYear = datasetBounds.minYear;
     activeFilters.maxYear = datasetBounds.maxYear;
     activeFilters.minRuntime = datasetBounds.minRuntime;
     activeFilters.maxRuntime = datasetBounds.maxRuntime;
 
-    // Setup inputs
     setupSliderElement(yearMinInput, yearMaxInput, datasetBounds.minYear, datasetBounds.maxYear, yearLabel, 'ans');
     setupSliderElement(runtimeMinInput, runtimeMaxInput, datasetBounds.minRuntime, datasetBounds.maxRuntime, runtimeLabel, 'min');
 
-    // Genre buttons
     Array.from(allGenres).sort().forEach(genre => {
         const btn = document.createElement('button');
         btn.className = 'genre-filter-btn';
@@ -236,12 +232,6 @@ function recenterOnMovie(movie) {
     targetPanY -= dy;
 }
 
-// ---------------------------------------------------------------
-// Backdrops (mobile uniquement, voir CSS) : sur PC l'effet "fisheye"
-// qui laisse voir la grille derrière la modale/sidebar est conservé
-// tel quel. Sur mobile, un fond assombri apparaît et permet de fermer
-// la modale/sidebar en tapant à côté.
-// ---------------------------------------------------------------
 const modalBackdrop = document.createElement('div');
 modalBackdrop.id = 'modal-backdrop';
 document.body.appendChild(modalBackdrop);
@@ -252,14 +242,46 @@ sidebarBackdrop.id = 'sidebar-backdrop';
 document.body.appendChild(sidebarBackdrop);
 sidebarBackdrop.addEventListener('click', closeSidebar);
 
-// Image de poster "autonome" affichée dans la modale sur mobile
-// (sur PC, l'espace reste transparent et laisse voir la carte agrandie
-// par l'effet fisheye juste derrière).
 const modalPosterImg = document.createElement('img');
 modalPosterImg.id = 'modal-poster-img';
 modalPosterImg.alt = '';
 modalPosterImg.draggable = false;
 modalPosterPlaceholder.appendChild(modalPosterImg);
+
+// --- FONCTIONS VIDEO ---
+function getYouTubeId(url) {
+    const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+}
+
+function openVideoModal(url) {
+    const videoId = getYouTubeId(url);
+    if (videoId) {
+        youtubeIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+        videoModal.classList.add('active');
+    } else {
+        // Fallback si le lien n'est pas un lien YouTube standard
+        window.open(url, '_blank');
+    }
+}
+
+function closeVideoModal() {
+    videoModal.classList.remove('active');
+    // On vide la src de l'iframe après l'animation de fermeture pour couper le son
+    setTimeout(() => {
+        youtubeIframe.src = '';
+    }, 300);
+}
+
+videoCloseBtn.addEventListener('click', closeVideoModal);
+videoModal.addEventListener('click', (e) => {
+    // Ferme si on clique sur l'arrière-plan (en dehors de l'iframe)
+    if (e.target === videoModal) {
+        closeVideoModal();
+    }
+});
+// -----------------------
 
 function openMovieModal(movie, card) {
     if (activeMovieRecord) {
@@ -294,11 +316,16 @@ function openMovieModal(movie, card) {
         modalDuration.textContent = "N/C";
     }
 
+    // GESTION DU BOUTON TRAILER MODIFIEE POUR LA MODAL VIDEO
     if (movie.trailer) {
         modalTrailer.style.display = 'inline-flex';
-        modalTrailer.href = movie.trailer;
+        modalTrailer.onclick = (e) => {
+            e.preventDefault(); // Empêche de scroller en haut de page avec href="#"
+            openVideoModal(movie.trailer);
+        };
     } else {
         modalTrailer.style.display = 'none';
+        modalTrailer.onclick = null;
     }
 
     modalGenres.innerHTML = '';
@@ -314,7 +341,6 @@ function openMovieModal(movie, card) {
     modal.classList.add('active');
     modalBackdrop.classList.add('active');
 
-    // Sauvegarde des dimensions de la modale pour le calcul de position mobile
     modalRect.width = modal.offsetWidth;
     modalRect.height = modal.offsetHeight;
 }
@@ -324,8 +350,6 @@ function closeMovieModal() {
         activeMovieRecord.card.classList.remove('modal-active');
         activeMovieRecord.movie.isActiveMovie = false;
         activeMovieRecord = null;
-        // On ne met PAS modalTargetMovie à null pour que la modale
-        // continue de suivre la carte pendant l'animation de fermeture (fondu).
     }
     modal.classList.remove('active');
     modalBackdrop.classList.remove('active');
@@ -365,9 +389,6 @@ function updateLoop() {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
 
-    // Sur petit écran, un rayon/zoom identique au desktop est disproportionné
-    // (il couvrirait quasi tout l'écran). On adapte le fisheye à la taille
-    // de la fenêtre pour garder plusieurs cartes visibles en même temps.
     const mobile = isMobileViewport();
     const effectRadius = mobile ? Math.min(280, screenWidth * 0.6) : 550;
     const maxScale = mobile ? 2.2 : 2.8;
@@ -384,20 +405,15 @@ function updateLoop() {
         const card = cardsElements[index];
         if (!card) return;
 
-        // La logique d'affichage doit toujours calculer la position exacte de modalTargetMovie,
-        // même s'il est filtré, de façon à gérer la sortie de modale doucement
         const isFilteredOut = !movieMatchesFilters(movie);
-
         const movieCenterX = movie.x * CELL_WIDTH + CELL_WIDTH / 2;
         const movieCenterY = movie.y * CELL_HEIGHT + CELL_HEIGHT / 2;
-
         const rawX = currentPanX + movieCenterX;
         const rawY = currentPanY + movieCenterY;
 
         let relX = rawX - centerX;
         let relY = rawY - centerY;
 
-        // Loop the positions
         relX = ((relX + GRID_WIDTH_PX / 2) % GRID_WIDTH_PX + GRID_WIDTH_PX) % GRID_WIDTH_PX - GRID_WIDTH_PX / 2;
         relY = ((relY + GRID_HEIGHT_PX / 2) % GRID_HEIGHT_PX + GRID_HEIGHT_PX) % GRID_HEIGHT_PX - GRID_HEIGHT_PX / 2;
 
@@ -412,7 +428,6 @@ function updateLoop() {
         let pushFactor = 1;
         let brightness = 0.25;
 
-        // Effet fish-eye
         if (distance < effectRadius) {
             const ratio = distance / effectRadius;
             const zoomFactor = Math.pow(1 - ratio, 2.2);
@@ -424,10 +439,8 @@ function updateLoop() {
         const distortedScreenX = centerX + distX * pushFactor;
         const distortedScreenY = centerY + distY * pushFactor;
 
-        // ATTACHEMENT DE LA MODALE
         if (movie === modalTargetMovie) {
-            const modalScale = scale / maxScale; // Echelle relative (1 quand on est au centre de l'écran)
-
+            const modalScale = scale / maxScale;
             if (mobile) {
                 const w = modalRect.width || (window.innerWidth * 0.9);
                 const h = modalRect.height || 400;
@@ -435,7 +448,6 @@ function updateLoop() {
                 const my = distortedScreenY - h / 2;
                 modal.style.transform = `translate3d(${mx}px, ${my}px, 0) scale(${modalScale})`;
             } else {
-                // Sur PC, le centre de l'emplacement du poster (largeur 308px, hauteur 462px) est à (154, 231)
                 const mx = distortedScreenX - 154;
                 const my = distortedScreenY - 231;
                 modal.style.transform = `translate3d(${mx}px, ${my}px, 0) scale(${modalScale})`;
@@ -450,7 +462,6 @@ function updateLoop() {
             return;
         }
 
-        // Culling (on n'affiche que ce qui est à l'écran + marge)
         const inViewport = (
             distortedScreenX >= -cullingMargin &&
             distortedScreenX <= screenWidth + cullingMargin &&
@@ -487,7 +498,6 @@ function updateLoop() {
     requestAnimationFrame(updateLoop);
 }
 
-// Filter button
 filterToggleBtn.addEventListener('click', () => {
     if (filterSidebar.classList.contains('open')) {
         closeSidebar();
@@ -518,9 +528,6 @@ resetFiltersBtn.addEventListener('click', () => {
     closeMovieModal();
 });
 
-// ---------------------------------------------------------------
-// Pan (déplacement de la grille) : souris ET tactile.
-// ---------------------------------------------------------------
 function getPointerPosition(e) {
     if (e.touches && e.touches.length > 0) {
         return { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -577,18 +584,15 @@ function handleDragEnd() {
     isDragging = false;
 }
 
-// Souris (desktop)
 viewport.addEventListener('mousedown', handleDragStart);
 document.addEventListener('mousemove', handleDragMove);
 document.addEventListener('mouseup', handleDragEnd);
 
-// Tactile (mobile/tablette)
 viewport.addEventListener('touchstart', handleDragStart, { passive: true });
 document.addEventListener('touchmove', handleDragMove, { passive: false });
 document.addEventListener('touchend', handleDragEnd, { passive: true });
 document.addEventListener('touchcancel', handleDragEnd, { passive: true });
 
-// Recentrage doux lors d'un changement de taille de fenêtre
 let lastWindowWidth = window.innerWidth;
 let lastWindowHeight = window.innerHeight;
 window.addEventListener('resize', () => {
@@ -607,7 +611,6 @@ window.addEventListener('resize', () => {
     }
 });
 
-// Search bar
 searchBar.addEventListener('input', (e) => {
     closeMovieModal();
     const query = e.target.value.toLowerCase().trim();
