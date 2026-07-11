@@ -67,14 +67,23 @@ const DRAG_THRESHOLD = 5;
 
 let activeMovieRecord = null;
 
-fetch('movies_grid.json')
-    .then(response => response.json())
-    .then(movies => {
-        moviesData = movies;
-        analyzeDatasetAndSetupFilters();
-        renderGrid();
-        requestAnimationFrame(updateLoop);
+Promise.all([
+    fetch('data/movie_details.json').then(res => res.json()),
+    fetch('data/movie_grid.json').then(res => res.json())
+]).then(([detailsMap, gridData]) => {
+
+    moviesData = gridData.map(gridItem => {
+        const details = detailsMap[gridItem.id.toString()];
+        return {
+            ...gridItem,
+            ...details
+        };
     });
+
+    analyzeDatasetAndSetupFilters();
+    renderGrid();
+    requestAnimationFrame(updateLoop);
+}).catch(err => console.error("Erreur de chargement des données:", err));
 
 function analyzeDatasetAndSetupFilters() {
     const allGenres = new Set();
@@ -85,10 +94,10 @@ function analyzeDatasetAndSetupFilters() {
 
         if (movie.genres) movie.genres.forEach(g => allGenres.add(g));
 
-            if (movie.year < datasetBounds.minYear || datasetBounds.minYear === -1) datasetBounds.minYear = movie.year;
-            if (movie.year > datasetBounds.maxYear || datasetBounds.minYear === -1) datasetBounds.maxYear = movie.year;
-            if (movie.runtime < datasetBounds.minRuntime || datasetBounds.minRuntime === -1) datasetBounds.minRuntime = movie.runtime;
-            if (movie.runtime > datasetBounds.maxRuntime || datasetBounds.maxRuntime === -1) datasetBounds.maxRuntime = movie.runtime;
+        if (movie.year && (movie.year < datasetBounds.minYear || datasetBounds.minYear === -1)) datasetBounds.minYear = movie.year;
+        if (movie.year && (movie.year > datasetBounds.maxYear || datasetBounds.minYear === -1)) datasetBounds.maxYear = movie.year;
+        if (movie.runtime < datasetBounds.minRuntime || datasetBounds.minRuntime === -1) datasetBounds.minRuntime = movie.runtime;
+        if (movie.runtime > datasetBounds.maxRuntime || datasetBounds.maxRuntime === -1) datasetBounds.maxRuntime = movie.runtime;
     });
 
     // Initial filters
@@ -172,7 +181,8 @@ function renderGrid() {
     moviesData.forEach((movie, index) => {
         const card = document.createElement('div');
         card.className = 'movie-card';
-        card.innerHTML = `<img src="${movie.poster}" alt="${movie.title}" title="${movie.title}" draggable="false">`;
+        const safeTitle = (movie.title || "").replace(/"/g, '&quot;');
+        card.innerHTML = `<img src="${movie.poster}" alt="${safeTitle}" title="${safeTitle}" draggable="false">`;
 
         movie.isVisible = false;
         movie.isActiveMovie = false;
@@ -192,8 +202,20 @@ function recenterOnMovie(movie) {
     const targetX = movie.x * CELL_WIDTH + CELL_WIDTH / 2;
     const targetY = movie.y * CELL_HEIGHT + CELL_HEIGHT / 2;
 
-    targetPanX = window.innerWidth / 2 - targetX;
-    targetPanY = window.innerHeight / 2 - targetY;
+    const GRID_WIDTH_PX = GRID_SIZE * CELL_WIDTH;
+    const GRID_HEIGHT_PX = GRID_SIZE * CELL_HEIGHT;
+
+    let currentWorldCenterX = window.innerWidth / 2 - targetPanX;
+    let currentWorldCenterY = window.innerHeight / 2 - targetPanY;
+
+    let dx = targetX - currentWorldCenterX;
+    let dy = targetY - currentWorldCenterY;
+
+    dx = ((dx + GRID_WIDTH_PX / 2) % GRID_WIDTH_PX + GRID_WIDTH_PX) % GRID_WIDTH_PX - GRID_WIDTH_PX / 2;
+    dy = ((dy + GRID_HEIGHT_PX / 2) % GRID_HEIGHT_PX + GRID_HEIGHT_PX) % GRID_HEIGHT_PX - GRID_HEIGHT_PX / 2;
+
+    targetPanX -= dx;
+    targetPanY -= dy;
 }
 
 function openMovieModal(movie, card) {
@@ -289,6 +311,9 @@ function updateLoop() {
     const maxScale = 2.8;
     const cullingMargin = 200;
 
+    const GRID_WIDTH_PX = GRID_SIZE * CELL_WIDTH;
+    const GRID_HEIGHT_PX = GRID_SIZE * CELL_HEIGHT;
+
     const easeFactor = isMouseDown ? 0.25 : 0.08;
     currentPanX += (targetPanX - currentPanX) * easeFactor;
     currentPanY += (targetPanY - currentPanY) * easeFactor;
@@ -297,7 +322,6 @@ function updateLoop() {
         const card = cardsElements[index];
         if (!card) return;
 
-        // Skip if the movie doesn't match the filters
         if (!movieMatchesFilters(movie)) {
             if (movie.isVisible) {
                 card.style.display = 'none';
@@ -309,8 +333,18 @@ function updateLoop() {
         const movieCenterX = movie.x * CELL_WIDTH + CELL_WIDTH / 2;
         const movieCenterY = movie.y * CELL_HEIGHT + CELL_HEIGHT / 2;
 
-        const undistortedScreenX = currentPanX + movieCenterX;
-        const undistortedScreenY = currentPanY + movieCenterY;
+        const rawX = currentPanX + movieCenterX;
+        const rawY = currentPanY + movieCenterY;
+
+        let relX = rawX - centerX;
+        let relY = rawY - centerY;
+
+        // Loop the positions
+        relX = ((relX + GRID_WIDTH_PX / 2) % GRID_WIDTH_PX + GRID_WIDTH_PX) % GRID_WIDTH_PX - GRID_WIDTH_PX / 2;
+        relY = ((relY + GRID_HEIGHT_PX / 2) % GRID_HEIGHT_PX + GRID_HEIGHT_PX) % GRID_HEIGHT_PX - GRID_HEIGHT_PX / 2;
+
+        const undistortedScreenX = centerX + relX;
+        const undistortedScreenY = centerY + relY;
 
         const distX = undistortedScreenX - centerX;
         const distY = undistortedScreenY - centerY;
@@ -320,6 +354,7 @@ function updateLoop() {
         let pushFactor = 1;
         let brightness = 0.25;
 
+        // Effet fish-eye
         if (distance < effectRadius) {
             const ratio = distance / effectRadius;
             const zoomFactor = Math.pow(1 - ratio, 2.2);
@@ -331,6 +366,7 @@ function updateLoop() {
         const distortedScreenX = centerX + distX * pushFactor;
         const distortedScreenY = centerY + distY * pushFactor;
 
+        // Culling (on n'affiche que ce qui est à l'écran + marge)
         const inViewport = (
             distortedScreenX >= -cullingMargin &&
             distortedScreenX <= screenWidth + cullingMargin &&
@@ -446,7 +482,7 @@ searchBar.addEventListener('input', (e) => {
     if (query.length < 2) return;
 
     const matchedIndex = moviesData.findIndex(movie =>
-        movieMatchesFilters(movie) && movie.title.toLowerCase().includes(query)
+        movieMatchesFilters(movie) && movie.title && movie.title.toLowerCase().includes(query)
     );
 
     if (matchedIndex !== -1) {
