@@ -48,21 +48,19 @@ body {
     box-sizing: border-box;
 }
 
-/* BOUTON D'EFFACEMENT DE LA RECHERCHE */
 #clear-search-btn {
     background: transparent;
     border: none;
     color: #88888c;
     padding: 0 12px;
     cursor: pointer;
-    display: none; /* Masqué par défaut */
+    display: none; /* Start hidden */
     align-items: center;
     justify-content: center;
     transition: color 0.2s, transform 0.2s;
 }
-#clear-search-btn svg {
-    width: 18px;
-    height: 18px;
+#clear-search-btn i {
+    font-size: 18px;
 }
 #clear-search-btn:hover {
     color: #ff4757;
@@ -81,9 +79,8 @@ body {
     transition: color 0.2s, transform 0.2s;
     border-left: 1px solid rgba(255, 255, 255, 0.05);
 }
-#filter-toggle-btn svg, #random-btn svg {
-    width: 20px;
-    height: 20px;
+#filter-toggle-btn i, #random-btn i {
+    font-size: 18px;
 }
 #filter-toggle-btn:hover {
     color: #00d2d3;
@@ -367,10 +364,9 @@ body {
     width: fit-content;
     cursor: pointer;
 }
-.trailer-btn svg { width: 18px; height: 18px; }
+.trailer-btn i { font-size: 14px; }
 .trailer-btn:hover { background: #e2e2e5; transform: translateY(-2px); }
 
-/* --- VIDEO MODAL --- */
 #video-modal {
     position: fixed;
     inset: 0;
