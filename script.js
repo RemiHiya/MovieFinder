@@ -45,6 +45,9 @@ const runtimeLabel = document.getElementById('runtime-range-label');
 let moviesData = [];
 let cardsElements = [];
 
+let visible_count = 0;
+let last_visible_count = -1;
+
 // Filters states
 let activeFilters = {
     genres: new Set(),
@@ -420,6 +423,8 @@ function updateLoop() {
     currentPanX += (targetPanX - currentPanX) * easeFactor;
     currentPanY += (targetPanY - currentPanY) * easeFactor;
 
+    visible_count = 0;
+
     moviesData.forEach((movie, index) => {
         const card = cardsElements[index];
         if (!card) return;
@@ -480,6 +485,7 @@ function updateLoop() {
             }
             return;
         }
+        visible_count++;
 
         const inViewport = (
             distortedScreenX >= -cullingMargin &&
@@ -513,6 +519,11 @@ function updateLoop() {
             }
         }
     });
+
+    if (visible_count !== last_visible_count) {
+        last_visible_count = visible_count;
+        searchBar.placeholder = `Search in ${visible_count} movies...`;
+    }
 
     requestAnimationFrame(updateLoop);
 }
