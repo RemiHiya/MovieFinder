@@ -3,11 +3,12 @@ A web application that makes it easy to discover movies similar to others.
 It displays films on a grid, positioning them closer together or further apart based on how similar they are to each other.
 
 ## Demo
-Todo
+You can try the app with a dataset of 10k movies [here](https://remihiya.github.io/MovieFinder/).
 
 ## Usage
-To generate your own data, you need to supply 2 values in `constants.py` : your [TMDB API key](https://themoviedb.org/login) 
-and the grid size you want.
+To generate your own data, you need to supply 2 values in `constants.py` : 
+- Your [TMDB API key](https://themoviedb.org/login) 
+- The grid size you want.
 
 Generating a dataset is a 3 step process :
 - `movie_list.py` creates a list of GRID_SIZE² movies.
