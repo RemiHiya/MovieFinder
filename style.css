@@ -558,3 +558,60 @@ body {
     transform: translateX(18px);
     background: #5352ed;
 }
+
+#external-links {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(15, 15, 20, 0.85);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 8px 12px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#external-links a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #a0a0a0;
+    text-decoration: none;
+    transition: color 0.2s, transform 0.2s, opacity 0.2s;
+}
+
+#external-links a:hover {
+    transform: scale(1.1);
+}
+
+#external-links .fa-github {
+    font-size: 24px;
+}
+#external-links a:has(.fa-github):hover {
+    color: #ffffff;
+}
+
+#external-links img {
+    height: 22px;
+    width: auto;
+    display: block;
+}
+
+@media (max-width: 480px) {
+    #external-links {
+        bottom: 12px;
+        left: 12px;
+        padding: 6px 10px;
+        gap: 10px;
+    }
+    #external-links .fa-github {
+        font-size: 20px;
+    }
+    #external-links img {
+        height: 18px;
+    }
+}
