@@ -34,6 +34,10 @@ const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
 const genresContainer = document.getElementById('genres-container');
 const resetFiltersBtn = document.getElementById('reset-filters-btn');
 
+// Filters options
+const adultToggle = document.getElementById('adult-toggle');
+const genreMatchAllToggle = document.getElementById('genre-match-all-toggle');
+
 const yearMinInput = document.getElementById('year-min');
 const yearMaxInput = document.getElementById('year-max');
 const yearLabel = document.getElementById('year-range-label');
@@ -51,6 +55,7 @@ let last_visible_count = -1;
 // Filters states
 let activeFilters = {
     genres: new Set(),
+    matchAllGenres: false,
     minYear: -1,
     maxYear: -1,
     minRuntime: -1,
@@ -90,8 +95,6 @@ function isMobileViewport() {
     return window.innerWidth <= 768;
 }
 
-const adultToggle = document.getElementById('adult-toggle');
-
 let detailsMapCache = null;
 let standardGridCache = null;
 let adultGridCache = null;
@@ -127,6 +130,11 @@ function loadGridDataset(isAdultEnabled) {
 adultToggle.addEventListener('change', (e) => {
     closeMovieModal();
     loadGridDataset(e.target.checked);
+});
+
+genreMatchAllToggle.addEventListener('change', (e) => {
+    activeFilters.matchAllGenres = e.target.checked;
+    closeMovieModal();
 });
 
 function analyzeDatasetAndSetupFilters() {
@@ -203,9 +211,17 @@ function setupSliderElement(minInput, maxInput, minVal, maxVal, labelEl, unit) {
 
 function movieMatchesFilters(movie) {
     if (activeFilters.genres.size > 0) {
-        const hasGenre = movie.genres && movie.genres.some(g => activeFilters.genres.has(g));
-        if (!hasGenre) return false;
+        if (!movie.genres) return false;
+
+        if (activeFilters.matchAllGenres) {
+            const hasAllGenres = Array.from(activeFilters.genres).every(g => movie.genres.includes(g));
+            if (!hasAllGenres) return false;
+        } else {
+            const hasAnyGenre = movie.genres.some(g => activeFilters.genres.has(g));
+            if (!hasAnyGenre) return false;
+        }
     }
+
     if (movie.year && (movie.year < activeFilters.minYear || movie.year > activeFilters.maxYear)) {
         return false;
     }
