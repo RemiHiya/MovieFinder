@@ -145,7 +145,7 @@ function analyzeDatasetAndSetupFilters() {
     activeFilters.minRuntime = datasetBounds.minRuntime;
     activeFilters.maxRuntime = datasetBounds.maxRuntime;
 
-    setupSliderElement(yearMinInput, yearMaxInput, datasetBounds.minYear, datasetBounds.maxYear, yearLabel, 'ans');
+    setupSliderElement(yearMinInput, yearMaxInput, datasetBounds.minYear, datasetBounds.maxYear, yearLabel, '');
     setupSliderElement(runtimeMinInput, runtimeMaxInput, datasetBounds.minRuntime, datasetBounds.maxRuntime, runtimeLabel, 'min');
 
     genresContainer.innerHTML = "";
