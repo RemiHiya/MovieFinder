@@ -182,7 +182,7 @@ function setupSliderElement(minInput, maxInput, minVal, maxVal, labelEl, unit) {
         if (parseInt(minInput.value) > parseInt(maxInput.value)) {
             minInput.value = maxInput.value;
         }
-        if (unit === 'ans') activeFilters.minYear = parseInt(minInput.value);
+        if (unit === '') activeFilters.minYear = parseInt(minInput.value);
         else activeFilters.minRuntime = parseInt(minInput.value);
         updateLabel();
         closeMovieModal();
@@ -192,7 +192,7 @@ function setupSliderElement(minInput, maxInput, minVal, maxVal, labelEl, unit) {
         if (parseInt(maxInput.value) < parseInt(minInput.value)) {
             maxInput.value = minInput.value;
         }
-        if (unit === 'ans') activeFilters.maxYear = parseInt(maxInput.value);
+        if (unit === '') activeFilters.maxYear = parseInt(maxInput.value);
         else activeFilters.maxRuntime = parseInt(maxInput.value);
         updateLabel();
         closeMovieModal();
